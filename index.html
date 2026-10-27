@@ -1,0 +1,1381 @@
+<!DOCTYPE html>
+<html lang="id" class="h-full bg-slate-900">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Game Balap Motor 3D Pemasaran Digital LKPD</title>
+    
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Font Awesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- Google Fonts: Orbitron & Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=Orbitron:wght@700;900&display=swap" rel="stylesheet">
+    
+    <!-- Three.js (3D Engine) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    
+    <!-- Tone.js (Audio Synthesis & Soft Sound FX) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+    
+    <!-- Canvas Confetti for Celebration -->
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            overflow: hidden;
+        }
+        .font-orbitron {
+            font-family: 'Orbitron', sans-serif;
+        }
+        
+        /* Strict 16:9 Aspect Ratio Container */
+        .game-wrapper {
+            position: relative;
+            width: 100vw;
+            max-width: 1280px;
+            height: calc(100vw * 9 / 16);
+            max-height: 720px;
+            margin: auto;
+            overflow: hidden;
+            background-color: #0f172a;
+        }
+
+        /* 3D Canvas Layer inside wrapper */
+        #canvas-container {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+        }
+
+        /* UI Glassmorphism Panels */
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.88);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.6);
+        }
+
+        /* Speed Lines FX Overlay */
+        .speed-lines {
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            background: radial-gradient(circle, transparent 40%, rgba(2, 132, 199, 0.2) 100%);
+            z-index: 2;
+        }
+        .speeding .speed-lines {
+            opacity: 1;
+        }
+
+        /* Screen Crash / Red Flash FX Overlay */
+        .crash-flash {
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+            opacity: 0;
+            background: radial-gradient(circle, rgba(239, 68, 68, 0.5) 0%, rgba(185, 28, 28, 0.9) 100%);
+            z-index: 3;
+            transition: opacity 0.2s ease;
+        }
+        .flashing .crash-flash {
+            opacity: 1;
+        }
+
+        /* Trophy glow animation */
+        @keyframes pulse-glow {
+            0%, 100% { filter: drop-shadow(0 0 15px rgba(245, 158, 11, 0.9)); }
+            50% { filter: drop-shadow(0 0 25px rgba(239, 68, 68, 0.9)); }
+        }
+        .trophy-glow {
+            animation: pulse-glow 2s infinite ease-in-out;
+        }
+
+        /* Split Screen Divider */
+        .split-divider {
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            left: 50%;
+            width: 4px;
+            background: linear-gradient(to bottom, #38bdf8, #818cf8, #f59e0b);
+            transform: translateX(-50%);
+            z-index: 10;
+            box-shadow: 0 0 10px rgba(56, 189, 248, 0.8);
+        }
+
+        /* Custom Scrollbar for Options */
+        .custom-scroll::-webkit-scrollbar {
+            width: 4px;
+        }
+        .custom-scroll::-webkit-scrollbar-track {
+            background: rgba(226, 232, 240, 0.5);
+            border-radius: 4px;
+        }
+        .custom-scroll::-webkit-scrollbar-thumb {
+            background: #0284c7;
+            border-radius: 4px;
+        }
+
+        /* Print styling for Certificate */
+        @media print {
+            body * {
+                visibility: hidden;
+            }
+            #certificateModal, #certificateModal * {
+                visibility: visible;
+            }
+            #certificateModal {
+                position: absolute;
+                left: 0;
+                top: 0;
+                width: 100%;
+                height: 100%;
+                background: white !important;
+                padding: 0 !important;
+            }
+            .no-print {
+                display: none !important;
+            }
+        }
+    </style>
+</head>
+<body class="bg-slate-900 text-slate-800 select-none flex items-center justify-center min-h-screen m-0">
+
+    <!-- 16:9 ASPECT RATIO MAIN WRAPPER -->
+    <div class="game-wrapper rounded-2xl border-2 border-slate-700/50 shadow-2xl my-auto">
+
+        <!-- 3D Canvas Container -->
+        <div id="canvas-container"></div>
+        <div class="speed-lines" id="speedLines"></div>
+        <div class="crash-flash" id="crashFlash"></div>
+        
+        <!-- Split Screen Center Line (Visible in 2P mode) -->
+        <div id="splitDivider" class="split-divider hidden"></div>
+
+        <!-- UI OVERLAY CONTAINER -->
+        <div id="ui-overlay" class="relative z-10 w-full h-full flex flex-col justify-between p-2 pointer-events-none">
+
+            <!-- 2-PLAYER INTERACTIVE SPLIT SCREEN CONTAINER -->
+            <div id="gamePlayScreen" class="grid grid-cols-12 gap-2 h-full w-full hidden">
+                
+                <!-- ==================== PEMAIN 1 (SISI KIRI) ==================== -->
+                <div id="p1Area" class="col-span-6 flex flex-col justify-start gap-1 pointer-events-auto pr-1">
+                    <!-- P1 Top HUD -->
+                    <div class="flex flex-col gap-1">
+                        <div class="flex items-center gap-1 flex-wrap">
+                            <span class="px-2 py-0.5 rounded-lg bg-sky-600 text-white font-black text-[9px] font-orbitron shadow">P1: KIRI</span>
+                            <div class="glass-panel px-2 py-0.5 rounded-lg flex items-center gap-1 border-l-2 border-sky-500">
+                                <i class="fa-solid fa-gauge-high text-sky-600 text-xs"></i>
+                                <span id="p1Speed" class="text-xs font-black font-orbitron text-sky-600">0 KM/H</span>
+                            </div>
+                            <div class="glass-panel px-2 py-0.5 rounded-lg flex items-center gap-1 border-l-2 border-indigo-500">
+                                <i class="fa-solid fa-flag-checkered text-indigo-600 text-xs"></i>
+                                <span id="p1Pos" class="text-xs font-black font-orbitron text-indigo-700">1 / 3</span>
+                            </div>
+                            <div class="glass-panel px-2 py-0.5 rounded-lg flex items-center gap-1 border-r-2 border-amber-500">
+                                <i class="fa-solid fa-trophy text-amber-500 text-xs"></i>
+                                <span id="p1Score" class="text-xs font-black font-orbitron text-amber-600">0</span>
+                            </div>
+                            <div class="glass-panel px-1.5 py-0.5 rounded-lg flex items-center gap-1 border-r-2 border-rose-600">
+                                <span class="text-[7px] font-bold">SALAH</span>
+                                <div class="flex gap-0.5" id="p1Strike">
+                                    <span class="w-2 h-2 rounded-full bg-slate-300 inline-block"></span>
+                                    <span class="w-2 h-2 rounded-full bg-slate-300 inline-block"></span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Progress Bar P1 -->
+                        <div class="glass-panel px-2 py-0.5 rounded-lg border-t border-sky-400">
+                            <div class="w-full bg-slate-200 h-1.5 rounded-full overflow-hidden">
+                                <div id="p1Bar" class="bg-sky-500 h-full transition-all duration-300" style="width: 0%"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- P1 Quiz Box -->
+                    <div id="p1Quiz" class="glass-panel p-2 rounded-xl border-2 border-sky-300/80 shadow-xl max-h-[48vh] flex flex-col justify-between">
+                        <div>
+                            <div class="flex justify-between items-center mb-1">
+                                <span id="p1NameTag" class="text-[9px] font-extrabold text-sky-700 uppercase truncate max-w-[120px]">Pemain 1</span>
+                                <span class="px-1.5 py-0.5 bg-sky-100 text-sky-800 rounded-md text-[9px] font-bold font-orbitron">SOAL <span id="p1QNum">1/25</span></span>
+                            </div>
+                            <div class="bg-sky-50/90 p-1.5 rounded-lg border border-sky-200 mb-1">
+                                <h3 id="p1QText" class="text-[10px] md:text-[11px] font-bold text-slate-800 leading-tight">Memuat Soal...</h3>
+                            </div>
+                            <div id="p1Opts" class="grid grid-cols-2 gap-1 max-h-[25vh] overflow-y-auto custom-scroll pr-0.5"></div>
+                        </div>
+                        <div id="p1Feedback" class="mt-1 p-1 rounded-lg text-center font-bold text-[9px] hidden"></div>
+                    </div>
+                </div>
+
+                <!-- ==================== PEMAIN 2 (SISI KANAN / MODE SOLO & VERSUS) ==================== -->
+                <div id="p2Area" class="col-span-6 flex flex-col justify-start gap-1 pointer-events-auto pl-1">
+                    <!-- P2 Top HUD & Timer Center -->
+                    <div class="flex flex-col gap-1">
+                        <div class="flex items-center gap-1 flex-wrap justify-end">
+                            <!-- Shared Timer -->
+                            <div class="glass-panel px-2 py-0.5 rounded-lg flex items-center gap-1 border-2 border-red-500 bg-red-50">
+                                <i class="fa-solid fa-clock text-red-600 text-xs"></i>
+                                <span id="timerDisplay" class="text-xs font-black font-orbitron text-red-600">07:00</span>
+                            </div>
+                            <div class="glass-panel px-2 py-0.5 rounded-lg flex items-center gap-1 border-r-2 border-amber-500">
+                                <i class="fa-solid fa-trophy text-amber-500 text-xs"></i>
+                                <span id="p2Score" class="text-xs font-black font-orbitron text-amber-600">0</span>
+                            </div>
+                            <div class="glass-panel px-2 py-0.5 rounded-lg flex items-center gap-1 border-l-2 border-indigo-500">
+                                <i class="fa-solid fa-flag-checkered text-indigo-600 text-xs"></i>
+                                <span id="p2Pos" class="text-xs font-black font-orbitron text-indigo-700">1 / 3</span>
+                            </div>
+                            <div class="glass-panel px-2 py-0.5 rounded-lg flex items-center gap-1 border-l-2 border-emerald-500">
+                                <i class="fa-solid fa-gauge-high text-emerald-600 text-xs"></i>
+                                <span id="p2Speed" class="text-xs font-black font-orbitron text-emerald-600">0 KM/H</span>
+                            </div>
+                            <span id="p2Badge" class="px-2 py-0.5 rounded-lg bg-indigo-600 text-white font-black text-[9px] font-orbitron shadow">P2: KANAN</span>
+                        </div>
+
+                        <!-- Progress Bar P2 -->
+                        <div class="glass-panel px-2 py-0.5 rounded-lg border-t border-indigo-400">
+                            <div class="w-full bg-slate-200 h-1.5 rounded-full overflow-hidden">
+                                <div id="p2Bar" class="bg-indigo-500 h-full transition-all duration-300" style="width: 0%"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- P2 Quiz Box -->
+                    <div id="p2Quiz" class="glass-panel p-2 rounded-xl border-2 border-indigo-300/80 shadow-xl max-h-[48vh] flex flex-col justify-between">
+                        <div>
+                            <div class="flex justify-between items-center mb-1">
+                                <span id="p2NameTag" class="text-[9px] font-extrabold text-indigo-700 uppercase truncate max-w-[120px]">Pemain 2</span>
+                                <span class="px-1.5 py-0.5 bg-indigo-100 text-indigo-800 rounded-md text-[9px] font-bold font-orbitron">SOAL <span id="p2QNum">1/25</span></span>
+                            </div>
+                            <div class="bg-indigo-50/90 p-1.5 rounded-lg border border-indigo-200 mb-1">
+                                <h3 id="p2QText" class="text-[10px] md:text-[11px] font-bold text-slate-800 leading-tight">Memuat Soal...</h3>
+                            </div>
+                            <div id="p2Opts" class="grid grid-cols-2 gap-1 max-h-[25vh] overflow-y-auto custom-scroll pr-0.5"></div>
+                        </div>
+                        <div id="p2Feedback" class="mt-1 p-1 rounded-lg text-center font-bold text-[9px] hidden"></div>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- TOTAL SKOR CUMULATIVE TOP BAR HUD -->
+            <div id="totalScoreHUD" class="absolute top-2 left-1/2 -translate-x-1/2 glass-panel px-3 py-1 rounded-full border-2 border-amber-400 shadow-lg pointer-events-auto flex items-center gap-2 z-20">
+                <i class="fa-solid fa-star text-amber-500 text-xs"></i>
+                <span class="text-[9px] font-black font-orbitron text-slate-600">TOTAL AKUMULASI:</span>
+                <span id="cumTotalScore" class="text-xs font-black font-orbitron text-amber-600">0 POIN</span>
+            </div>
+
+            <!-- START SCREEN MODAL WITH MODE & LEVEL SELECTION -->
+            <div id="startModal" class="fixed inset-0 z-50 flex items-center justify-center p-3 bg-sky-950/60 backdrop-blur-md pointer-events-auto">
+                <div class="glass-panel max-w-lg w-full p-5 md:p-6 rounded-3xl text-center border-2 border-white/80 shadow-2xl">
+                    <div class="inline-flex p-3 rounded-2xl bg-gradient-to-tr from-sky-500 via-indigo-600 to-amber-500 mb-2 shadow-lg shadow-sky-500/30">
+                        <i class="fa-solid fa-motorcycle text-3xl md:text-4xl text-white"></i>
+                    </div>
+                    <h1 class="text-xl md:text-2xl font-black font-orbitron text-transparent bg-clip-text bg-gradient-to-r from-sky-600 via-indigo-600 to-amber-500 mb-0.5">
+                        MOTO MARKETING RACE 3D
+                    </h1>
+                    <p class="text-slate-600 text-[11px] md:text-xs font-medium mb-3">
+                        Papan Balap Interaktif LKPD Pemasaran Digital - Solo & Multi-Player Split Screen!
+                    </p>
+
+                    <!-- MODE PEMAIN SELECTION -->
+                    <div class="mb-3 text-left">
+                        <label class="block text-[10px] font-black text-slate-700 uppercase tracking-wider mb-1 font-orbitron">
+                            <i class="fa-solid fa-users text-sky-500 mr-1"></i> Pilih Mode Permainan:
+                        </label>
+                        <div class="grid grid-cols-2 gap-2">
+                            <button type="button" data-mode="1p" class="mode-btn py-2 px-3 rounded-xl border-2 font-bold text-xs font-orbitron transition-all bg-sky-500 text-white border-sky-600 shadow-md flex items-center justify-center gap-1.5">
+                                <i class="fa-solid fa-user"></i> 1 PEMAIN (SOLO)
+                            </button>
+                            <button type="button" data-mode="2p" class="mode-btn py-2 px-3 rounded-xl border-2 font-bold text-xs font-orbitron transition-all bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200 flex items-center justify-center gap-1.5">
+                                <i class="fa-solid fa-user-friends"></i> 2 PEMAIN (SPLIT)
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- PLAYER NAMES INPUT -->
+                    <div class="grid grid-cols-2 gap-2 mb-3 text-left">
+                        <div>
+                            <label class="block text-[9px] font-black text-slate-700 uppercase font-orbitron mb-1">Pemain 1 (Kiri):</label>
+                            <input type="text" id="p1NameInput" value="Pemain 1" class="w-full px-2.5 py-1.5 rounded-xl border border-slate-300 text-xs font-semibold bg-white">
+                        </div>
+                        <div id="p2NameContainer" class="hidden">
+                            <label class="block text-[9px] font-black text-slate-700 uppercase font-orbitron mb-1">Pemain 2 (Kanan):</label>
+                            <input type="text" id="p2NameInput" value="Pemain 2" class="w-full px-2.5 py-1.5 rounded-xl border border-slate-300 text-xs font-semibold bg-white">
+                        </div>
+                    </div>
+
+                    <!-- LEVEL SELECTION OPTION -->
+                    <div class="mb-3 text-left">
+                        <label class="block text-[10px] font-black text-slate-700 uppercase tracking-wider mb-1 font-orbitron">
+                            <i class="fa-solid fa-layer-group text-sky-500 mr-1"></i> Pilih Tingkat Kesulitan:
+                        </label>
+                        <div class="grid grid-cols-3 gap-2">
+                            <button type="button" data-level="easy" class="level-btn py-2 px-2 rounded-xl border-2 font-bold text-[11px] font-orbitron transition-all bg-emerald-500 text-white border-emerald-600 shadow-md">
+                                MUDAH
+                            </button>
+                            <button type="button" data-level="medium" class="level-btn py-2 px-2 rounded-xl border-2 font-bold text-[11px] font-orbitron transition-all bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200">
+                                SEDANG
+                            </button>
+                            <button type="button" data-level="hard" class="level-btn py-2 px-2 rounded-xl border-2 font-bold text-[11px] font-orbitron transition-all bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200">
+                                SULIT
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- CUMULATIVE SCORE BOARD SUMMARY -->
+                    <div class="mb-3 p-2 bg-amber-50 rounded-xl border border-amber-200 text-center">
+                        <span class="text-[10px] font-bold text-amber-800 font-orbitron">RIWAYAT TOTAL SKOR GABUNGAN:</span>
+                        <div id="modalCumScore" class="text-sm font-black font-orbitron text-amber-600">0 POIN</div>
+                    </div>
+
+                    <button id="btnStartGame" class="w-full py-3 bg-gradient-to-r from-sky-500 via-indigo-600 to-amber-500 text-white font-black font-orbitron text-sm rounded-xl shadow-xl active:scale-95 transition cursor-pointer">
+                        <i class="fa-solid fa-play mr-1.5"></i> MULAI BALAPAN INTERAKTIF!
+                    </button>
+                </div>
+            </div>
+
+            <!-- GAME OVER / FINISH MODAL -->
+            <div id="finishModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-sky-950/80 backdrop-blur-lg pointer-events-auto hidden">
+                <div class="glass-panel max-w-md w-full p-6 rounded-3xl text-center border-2 border-white/90 shadow-2xl relative">
+                    <div class="trophy-glow inline-block mb-1">
+                        <i id="finishIcon" class="fa-solid fa-trophy text-5xl text-amber-400"></i>
+                    </div>
+                    <h1 id="finishTitle" class="text-2xl font-black font-orbitron text-amber-500 mb-1">HASIL BALAPAN!</h1>
+                    <p id="finishSubtitle" class="text-slate-600 text-xs font-medium mb-3">Sesi balapan telah selesai!</p>
+
+                    <!-- Stat summary -->
+                    <div class="bg-sky-50/90 p-3 rounded-2xl border border-sky-200 grid grid-cols-2 gap-2 mb-3 text-center shadow-inner">
+                        <div>
+                            <div id="p1FinishTitle" class="text-[9px] text-slate-500 font-bold mb-0.5">SKOR PEMAIN 1</div>
+                            <div id="finalP1Score" class="text-base font-black font-orbitron text-sky-600">0</div>
+                        </div>
+                        <div id="p2ScoreSummary">
+                            <div id="p2FinishTitle" class="text-[9px] text-slate-500 font-bold mb-0.5">SKOR PEMAIN 2</div>
+                            <div id="finalP2Score" class="text-base font-black font-orbitron text-indigo-600">0</div>
+                        </div>
+                        <div class="col-span-2 pt-1 border-t border-sky-200">
+                            <div class="text-[10px] text-slate-600 font-extrabold mb-0.5">TOTAL SKOR AKUMULASI (3 LEVEL)</div>
+                            <div id="finalCumScore" class="text-lg font-black font-orbitron text-amber-600">0 POIN</div>
+                        </div>
+                    </div>
+
+                    <div class="flex flex-col gap-2">
+                        <button id="btnCertificate" class="w-full py-2.5 bg-gradient-to-r from-emerald-500 to-teal-600 text-white font-black font-orbitron text-xs rounded-xl shadow-lg active:scale-95 transition flex items-center justify-center gap-1.5 cursor-pointer">
+                            <i class="fa-solid fa-certificate"></i> CETAK SERTIFIKAT PRESTASI
+                        </button>
+                        <button id="btnRestart" class="w-full py-2.5 bg-gradient-to-r from-amber-500 to-red-500 text-white font-black font-orbitron text-xs rounded-xl shadow-lg active:scale-95 transition flex items-center justify-center gap-1.5 cursor-pointer">
+                            <i class="fa-solid fa-rotate-right"></i> MAIN LEVEL LAIN / KEMBALI KE MENU
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- CERTIFICATE DISPLAY MODAL -->
+            <div id="certificateModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-sky-950/90 backdrop-blur-lg pointer-events-auto hidden overflow-y-auto">
+                <div class="glass-panel max-w-2xl w-full p-6 md:p-8 rounded-3xl border-4 border-amber-400/80 shadow-2xl relative bg-gradient-to-b from-amber-50 via-white to-sky-50 text-slate-800 my-auto">
+                    <div class="border-4 border-double border-amber-500/60 p-5 rounded-2xl relative">
+                        <div class="flex justify-between items-center mb-3 border-b-2 border-slate-200 pb-2">
+                            <div class="flex items-center gap-2">
+                                <i class="fa-solid fa-award text-3xl text-amber-500"></i>
+                                <span class="font-orbitron font-extrabold text-xs text-sky-800 tracking-wider">LKPD DIGITAL PEMASARAN</span>
+                            </div>
+                            <div class="text-right">
+                                <span class="text-[9px] font-bold text-slate-500 block">NO SERTIFIKAT</span>
+                                <span id="certId" class="font-orbitron text-xs font-bold text-indigo-600">MMR-2026-001</span>
+                            </div>
+                        </div>
+
+                        <h1 class="text-xl md:text-2xl font-black font-orbitron text-center text-slate-800 mb-0.5">SERTIFIKAT PRESTASI</h1>
+                        <p class="text-center text-[10px] font-semibold text-slate-500 tracking-widest uppercase mb-1">MOTO MARKETING RACE 3D</p>
+                        
+                        <!-- Lencana Pemenang -->
+                        <div class="text-center mb-2">
+                            <span id="certWinnerBadge" class="inline-block px-3 py-1 bg-amber-500 text-white text-[10px] font-black font-orbitron rounded-full shadow-md">
+                                <i class="fa-solid fa-trophy mr-1"></i> JUARA UTAMA
+                            </span>
+                        </div>
+
+                        <p class="text-center text-xs text-slate-600 mb-0.5">Diberikan kepada Pembalap Terbaik LKPD:</p>
+                        <h2 id="certName" class="text-lg md:text-xl font-black text-center text-indigo-700 underline decoration-amber-400 decoration-2 mb-2">NAMA SISWA</h2>
+
+                        <p class="text-center text-xs text-slate-600 max-w-lg mx-auto leading-relaxed mb-3">
+                            Telah berhasil meraih skor tertinggi & menyelesaikan Tantangan Balap LKPD Pemasaran Digital pada <span id="certLevel" class="font-bold text-amber-600">LEVEL MUDAH</span> dengan statistik luar biasa:
+                        </p>
+
+                        <div class="grid grid-cols-2 gap-2 bg-white/80 p-2.5 rounded-xl border border-slate-200 mb-4 text-center">
+                            <div>
+                                <div class="text-[9px] font-bold text-slate-400">SKOR TERTINGGI (PEMENANG)</div>
+                                <div id="certScore" class="font-black font-orbitron text-indigo-600 text-sm">0 POIN</div>
+                            </div>
+                            <div>
+                                <div class="text-[9px] font-bold text-slate-400">TOTAL AKUMULASI GABUNGAN</div>
+                                <div id="certTotalScore" class="font-black font-orbitron text-emerald-600 text-base">0 POIN</div>
+                            </div>
+                        </div>
+
+                        <div class="flex justify-between items-end text-left border-t border-slate-200 pt-3">
+                            <div>
+                                <p class="text-[9px] text-slate-500 font-bold">Tanggal Penyelesaian:</p>
+                                <p id="certDate" class="text-xs font-bold text-slate-700">27 Oktober 2026</p>
+                            </div>
+                            <div class="text-center">
+                                <div class="w-20 border-b border-slate-400 mb-1"></div>
+                                <p class="text-[9px] font-bold text-slate-500">Guru / Instruktur LKPD</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="flex gap-2 mt-3 no-print">
+                        <button onclick="window.print()" class="flex-1 py-2 bg-sky-600 hover:bg-sky-500 text-white font-bold font-orbitron text-xs rounded-xl transition flex items-center justify-center gap-1 cursor-pointer">
+                            <i class="fa-solid fa-print"></i> CETAK / SIMPAN PDF
+                        </button>
+                        <button id="btnCloseCert" class="py-2 px-4 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold font-orbitron text-xs rounded-xl transition cursor-pointer">
+                            TUTUP
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- MAIN GAME ENGINE & LOGIC SCRIPT -->
+    <script>
+        /* ==========================================================================
+           1. GAME CONFIGURATION & GLOBAL VARIABLES
+           ========================================================================== */
+        const trackLength = 1000;
+        let isRacing = false;
+        let gameMode = '1p'; // '1p' or '2p'
+        let selectedLevel = 'easy';
+        let timeLeft = 420;
+        let timerInterval = null;
+
+        // Player 1 & Player 2 State Structures
+        let p1 = {
+            name: "Pemain 1",
+            distance: 0,
+            speed: 0,
+            targetSpeed: 0,
+            score: 0,
+            strike: 0,
+            qIndex: 0,
+            finished: false,
+            bike: null,
+            camera: null
+        };
+
+        let p2 = {
+            name: "Pemain 2",
+            distance: 0,
+            speed: 0,
+            targetSpeed: 0,
+            score: 0,
+            strike: 0,
+            qIndex: 0,
+            finished: false,
+            bike: null,
+            camera: null
+        };
+
+        // Cumulative Scores for Levels
+        let cumulativeScores = { easy: 0, medium: 0, hard: 0 };
+
+        const levelConfigs = {
+            easy: { timeLimit: 420, boostSpeed: 140, timePenalty: 5, scoreGain: 100, enemySpeed: 32 },
+            medium: { timeLimit: 360, boostSpeed: 155, timePenalty: 10, scoreGain: 150, enemySpeed: 42 },
+            hard: { timeLimit: 300, boostSpeed: 175, timePenalty: 15, scoreGain: 200, enemySpeed: 52 }
+        };
+
+        let currentConfig = levelConfigs.easy;
+        let p1Questions = [], p2Questions = [];
+
+        /* ==========================================================================
+           2. QUESTION BANK (25 SOAL PER LEVEL - TOTAL 75 SOAL)
+           ========================================================================== */
+        const questionBankByLevel = {
+            easy: [
+                { q: "Apa kepanjangan dari formula penulisan iklan AIDA?", options: ["Attention, Interest, Desire, Action", "Action, Interest, Desire, Attention", "Attention, Information, Desire, Action", "Awareness, Interest, Decision, Action"], correct: 0, explain: "Formula AIDA singkatan dari Attention, Interest, Desire, dan Action." },
+                { q: "Dalam formula AIDA, elemen yang bertujuan membuat calon pembeli berhenti scrolling dalam 3 detik pertama adalah...", options: ["Attention (Hook)", "Interest (Masalah)", "Desire (Keunggulan)", "Action (CTA)"], correct: 0, explain: "Attention/Hook berfungsi menarik perhatian awal dalam 3 detik pertama." },
+                { q: "Formula copywriting PAS merupakan singkatan dari...", options: ["Problem - Agitate - Solution", "Product - Action - Solution", "Problem - Attention - Solution", "Positioning - Agitate - Strategy"], correct: 0, explain: "PAS singkatan dari Problem, Agitate, dan Solution." },
+                { q: "Mengangkat dan menyentuh masalah nyata yang dihadapi calon pembeli pada formula AIDA termasuk bagian...", options: ["Interest", "Attention", "Desire", "Action"], correct: 0, explain: "Interest mengangkat permasalahan nyata calon konsumen." },
+                { q: "Elemen AIDA yang menyoroti solusi dan keunggulan produk dari Value Proposition BMC adalah...", options: ["Desire", "Attention", "Interest", "Action"], correct: 0, explain: "Desire menekankan solusi dan keunggulan produk." },
+                { q: "Kalimat ajakan tegas untuk membeli atau menghubungi penjual seperti 'Pesan Sekarang!' disebut...", options: ["Call to Action (CTA)", "Hook Headline", "Value Proposition", "Problem Statement"], correct: 0, explain: "CTA adalah instruksi mengajak pembeli melakukan aksi nyata." },
+                { q: "Apa fungsi utama dari bagian 'Agitate' pada rumus copywriting PAS?", options: ["Memperjelas dampak buruk jika masalah tidak diatasi", "Menawarkan harga diskon produk", "Membuat judul iklan pendek", "Menghubungi penjual via WA"], correct: 0, explain: "Agitate memperjelas konsekuensi negatif jika masalah dibiarkan." },
+                { q: "Rasio aspek (Aspect Ratio) standar untuk poster/feed media sosial Canva adalah...", options: ["1:1 (Persegi)", "16:9 (Landscape)", "9:16 (Vertical)", "4:3 (Standard)"], correct: 0, explain: "Feed poster media sosial umumnya berbentuk persegi dengan rasio 1:1." },
+                { q: "Durasi ideal untuk merancang storyboard video pendek promo (Reels / TikTok / WA Story) adalah...", options: ["15 - 30 Detik", "1 - 2 Jam", "5 - 10 Menit", "60 - 90 Detik"], correct: 0, explain: "Video pendek promosi media sosial berdurasi efektif 15-30 detik." },
+                { q: "Siapa anggota tim kelompok LKPD yang bertugas menulis teks iklan persuasif?", options: ["Copywriter", "Desainer Visual", "Social Media Admin", "Publisher"], correct: 0, explain: "Copywriter bertanggung jawab menyusun draf kalimat persuasif/iklan." },
+                { q: "Dalam contoh storyboard 'Salad Buah SAL8', dialog 'Aduh, cuaca panas banget bikin lapar tapi mager makan berat...' berfungsi sebagai...", options: ["Audio Hook (Masalah)", "Call to Action", "Teks Penutup", "Visual Background"], correct: 0, explain: "Pernyataan tersebut mengangkat masalah cuaca panas sebagai Hook." },
+                { q: "Kunci utama dari copywriting adalah...", options: ["Seni menulis teks persuasif agar pembeli mau bertindak", "Membuat desain grafis dengan warna terang", "Menghafal rumus matematika produk", "Mengatur jaringan internet kantor"], correct: 0, explain: "Copywriting adalah seni penulisan persuasif untuk mendorong tindakan pembeli." },
+                { q: "Pilihan platform media sosial yang sering digunakan untuk promosi produk pendek adalah...", options: ["Instagram Reels & TikTok", "Microsoft Word", "Google Sheets", "Adobe Acrobat"], correct: 0, explain: "Instagram Reels & TikTok merupakan platform video pendek promosi populer." },
+                { q: "Elemen penutup pada storyboard video promo umumnya berisi...", options: ["Call to Action & Link / No. WA", "Judul Hook Baru", "Pengenalan Anggota Tim", "Penjelasan Rumus BMC"], correct: 0, explain: "Bagian penutup mengarahkan penonton ke aksi pembeliaan (CTA)." },
+                { q: "Mengapa bagian Hook (3 detik pertama) sangat krusial dalam video promo digital?", options: ["Menentukan apakah audiens lanjut menonton atau lanjut scrolling", "Satu-satunya tempat menaruh harga produk", "Diwajibkan oleh aplikasi TikTok", "Menghabiskan kuota penonton"], correct: 0, explain: "3 detik pertama menentukan ketertarikan penonton untuk lanjut menonton." },
+                { q: "Aplikasi gratis yang sangat populer digunakan oleh siswa untuk mendesain poster promosi adalah...", options: ["Canva", "MS Paint", "CorelDraw", "Microsoft Excel"], correct: 0, explain: "Canva merupakan aplikasi populer dan praktis untuk desain visual promosi." },
+                { q: "Jenis media promosi cetak yang biasanya dibagikan secara langsung di tempat umum adalah...", options: ["Brosur / Pamflet", "Iklan Televisi", "Web Banner", "Podcast"], correct: 0, explain: "Brosur dan pamflet merupakan contoh media promosi cetak langsung." },
+                { q: "Bagian AIDA yang berisi penawaran khusus atau manfaat langsung produk adalah...", options: ["Desire", "Attention", "Action", "Interest"], correct: 0, explain: "Desire menyajikan manfaat dan penawaran agar pembeli makin berminat." },
+                { q: "Visual yang menarik pada poster digital bertuan untuk mendukung elemen AIDA yaitu...", options: ["Attention", "Action", "Solution", "Transaction"], correct: 0, explain: "Visual eye-catching menangkap Attention audiens pertama kali." },
+                { q: "Istilah 'Content Creator' dalam tim pemasaran digital mengacu pada peran...", options: ["Pembuat ide dan materi konten digital", "Penanggung jawab modal usaha", "Pengantar barang/kurir", "Penjual bahan baku"], correct: 0, explain: "Content creator merancang ide dan eksekusi konten pemasaran." },
+                { q: "Mengapa teks dalam poster promo tidak boleh terlalu banyak dan padat?", options: ["Agar gampang dibaca singkat saat orang scrolling media sosial", "Agar menghemat kertas cetak", "Supaya warna poster terlihat gelap", "Karena peraturan Canva"], correct: 0, explain: "Teks yang singkat dan padat memudahkan audiens menyerap informasi." },
+                { q: "Simbol nomor telepon atau logo WhatsApp di bagian akhir poster termasuk dalam fungsi...", options: ["Call to Action (CTA)", "Hook Headline", "Agitate Problem", "Value Proposition"], correct: 0, explain: "Kontak WA mempermudah pembeli untuk segera melakukan aksi beli (CTA)." },
+                { q: "Penggunaan kombinasi warna yang kontras pada poster bertujuan untuk...", options: ["Membuat teks utama lebih menonjol dan mudah dibaca", "Memenuhi semua spektrum warna", "Menghemat penggunaan tinta print", "Menutupi gambar produk yang kurang bagus"], correct: 0, explain: "Kontras warna meningkatkan tingkat keterbacaan (readability) teks utama." },
+                { q: "Sebelum menulis draf copywriting, hal pertama yang harus dipahami oleh siswa adalah...", options: ["Target pembeli & Keunggulan produk", "Harga printer terbaru", "Berapa kapasitas memori HP", "Cara mengedit lagu di Spotify"], correct: 0, explain: "Paham sasaran pembeli & keunggulan produk adalah fondasi copywriting." },
+                { q: "Langkah terpenting saat menyusun storyboard sebelum pengambilan gambar adalah...", options: ["Menentukan alur adegan detik demi detik", "Membeli kamera mahal", "Menghafal seluruh daftar harga toko", "Mendesain logo perusahaan baru"], correct: 0, explain: "Storyboard berfungsi memetakan skenario visual & audio tiap detiknya." }
+            ],
+            medium: [
+                { q: "Manakah contoh kalimat 'Hook Attention' yang paling efektif untuk produk kuliner sehat?", options: ["'Cuaca panas gini bikin gampang emosi?!'", "'Kami menjual salad buah enak murah.'", "'Salad buah mengandung banyak vitamin.'", "'Silakan beli salad buah di toko kami.'"], correct: 0, explain: "Kalimat pertama menyentuh emosi dan masalah audiens secara instan." },
+                { q: "Teks layar: 'Harga Rp 10.000, Beli 2 Gratis Stiker Unik!'. Pada AIDA teks ini termasuk...", options: ["Desire & Action", "Attention saja", "Problem Statement", "Agitate"], correct: 0, explain: "Promosi penawaran khusus mendorong keinginan (Desire) dan aksi (Action)." },
+                { q: "Penggunaan Hashtag (#) dalam caption promosi media sosial berfungsi untuk...", options: ["Meningkatkan jangkauan pencarian & kategori konten", "Membuat tulisan menjadi berwarna biru", "Membayar biaya iklan otomatis", "Mengunci akun agar aman"], correct: 0, explain: "Hashtag membantu algoritma mengategorikan dan memperluas jangkauan konten." },
+                { q: "Dalam tim LKPD, anggota yang bertugas mendesain poster visual Canva adalah...", options: ["Desainer Visual / Content Creator", "Copywriter", "Social Media Admin", "Presenter"], correct: 0, explain: "Desainer Visual bertanggung jawab atas estetika dan tata letak grafis." },
+                { q: "Langkah kedua dalam merancang draf copywriting AIDA berdasarkan BMC adalah...", options: ["Interest: Mengangkat masalah konsumen", "Attention: Membuat judul panjang", "Action: Memberi diskon 90%", "Desire: Memaksa pembeli"], correct: 0, explain: "Tahap Interest difokuskan pada pemetaan masalah konsumen." },
+                { q: "Apa perbedaan mendasar antara Formula AIDA dan Formula PAS?", options: ["PAS berfokus memperjelas dampak masalah (Agitate) sebelum solusi", "AIDA tidak memiliki bagian Call to Action", "PAS khusus digunakan untuk cetak brosur", "AIDA hanya berisi gambar tanpa teks"], correct: 0, explain: "PAS menekankan penajaman masalah (Agitate) sebelum memberikan solusi." },
+                { q: "Dalam storyboard video, kolom 'Visual / Aksi Kamera' berisi tentang...", options: ["Instruksi adegan, gerak kamera, dan ekspresi pemeran", "Teks ucapan pengisi suara (voiceover)", "Daftar harga bahan baku produk", "Jumlah tayangan penonton"], correct: 0, explain: "Kolom Visual menggambarkan tampilan adegan dan arahan kamera." },
+                { q: "Contoh arahan kamera 'Close-up ke wajah orang yang lemas dan kepanasan' bertujuan untuk...", options: ["Visualisasi masalah (Problem) secara emosional", "Menunjukkan lokasi toko", "Menampilkan logo merek", "Memberikan arahan CTA"], correct: 0, explain: "Ekspresi close-up lemas memvisualisasikan masalah secara kuat." },
+                { q: "Sebutkan komponen yang Wajib ada pada desain poster feed media sosial!", options: ["Logo Brand, Hook Text, Foto Produk, Keunggulan & CTA", "Daftar Riwayat Hidup Pemilik, Alamat Rumah", "Nama Seluruh Anggota Kelompok, Struktur Organisasi", "Rumus Kimia Bahan Baku Produk"], correct: 0, explain: "Poster promosi harus memuat identitas merek, hook, visual, benefit & CTA." },
+                { q: "Target Pembeli (Customer Segment) pada draf copywriting dapat disesuaikan untuk...", options: ["Siswa, Guru/Staf, maupun Umum", "Khusus Produsen Pabrik", "Investor Saham Luar Negeri", "Robot Algoritma Google"], correct: 0, explain: "Target pasar disesuaikan dengan segmentasi produk pada BMC." },
+                { q: "Dalam draf iklan, bagian 'Solution' pada formula PAS diambil dari...", options: ["Value Proposition produk (BMC)", "Masalah pesaing usaha", "Biaya operasional bulanan", "Alamat pabrik bahan baku"], correct: 0, explain: "Solusi produk didasarkan pada Value Proposition unggulan usaha." },
+                { q: "Apa fungsi pengisian suara (Voiceover) pada storyboard video pendek?", options: ["Memperkuat penyampaian pesan promo bersama teks layar", "Menutup gambar produk agar rahasia", "Menggantikan peran desainer grafis", "Menambah durasi video jadi 1 jam"], correct: 0, explain: "Voiceover memperjelas narasi promosi secara verbal." },
+                { q: "Mengapa kalimat 'Gak cuma enak, yogurtnya bikin manis-segar!' efektif pada bagian Desire?", options: ["Menjelaskan kenikmatan & manfaat unik produk", "Memaksa orang mentransfer uang", "Menanyakan kabar penonton", "Menceritakan sejarah pabrik"], correct: 0, explain: "Menjelaskan rasa unik membangkitkan selera dan keinginan membeli." },
+                { q: "Kalimat 'Yuk, order sekarang via WA di bio! Promo porsi hemat cuma hari ini!' menggabungkan...", options: ["Call to Action dan Unsur Urgensi (Batas Waktu)", "Problem dan Agitate saja", "Greeting dan Ucapan Maaf", "Nama Kelompok dan Kelas"], correct: 0, explain: "Kalimat tersebut mendorong aksi segera dengan penawaran berbatas waktu." },
+                { q: "Apa yang harus dilakukan jika engagement video promo pada 3 detik pertama sangat rendah?", options: ["Evaluasi dan ganti kalimat Hook awal agar lebih menarik", "Hapus seluruh akun media sosial", "Menaikkan harga produk 10 kali lipat", "Mengubah nama perusahaan"], correct: 0, explain: "Hook yang kurang menarik harus dievaluasi dan diganti dengan ide yang lebih segar." },
+                { q: "Penggunaan foto produk asli yang jernih dibanding gambar tiruan internet bertujuan untuk...", options: ["Meningkatkan kepercayaan (trust) calon pembeli", "Membuat file desain lebih berat", "Menghemat kuota internet", "Persyaratan dari aplikasi Instagram"], correct: 0, explain: "Foto produk asli membangun kredibilitas dan kepercayaan konsumen." },
+                { q: "Dalam pembuatan naskah video Reels, 'Audio Hook' biasanya ditaruh di...", options: ["Detik 0 - 3", "Detik 10 - 15", "Bagian paling akhir video", "Hanya di deskripsi caption"], correct: 0, explain: "Audio hook ditaruh di detik-detik awal untuk langsung menyita perhatian." },
+                { q: "Manakah gaya penulisan caption yang tepat untuk audiens remaja sekolah?", options: ["Santai, ramah, persuasif, dan komunikatif", "Sangat kaku dan menggunakan bahasa formal kantor", "Menggunakan bahasa asing tanpa terjemahan", "Hanya berisi kumpulan simbol emoticon saja"], correct: 0, explain: "Gaya santai dan ramah lebih relevan bagi audiens remaja." },
+                { q: "Metode mengunggah ulang (repost) konten ulasan dari pelanggan puas disebut...", options: ["User Generated Content (UGC)", "Direct Selling", "Cold Calling", "Broadcast Message"], correct: 0, explain: "UGC merupakan bukti kepuasan nyata dari konsumen yang diunggah ulang." },
+                { q: "Teks 'Gratis Ongkir khusus pembelian hari ini via WhatsApp!' merupakan contoh strategi...", options: ["Insentif Penjualan pada CTA", "Agitate Problem", "Analisis Modal Usaha", "Identitas Visual"], correct: 0, explain: "Insentif seperti gratis ongkir mempercepat keputusan transaksi pembeli." },
+                { q: "Mengapa penempatan font judul pada poster harus memiliki kontras ukuran yang dominan?", options: ["Menciptakan hirarki visual agar perhatian terfokus ke judul utama", "Biar sisa ruang di poster cepat habis", "Supaya tidak terlihat kosong", "Rekomendasi dari pabrik kertas"], correct: 0, explain: "Hirarki visual memandu mata pembeli membaca pesan utama terlebih dulu." },
+                { q: "Dalam video TikTok promo, penambahan Teks Layar (Subtitel) berfungsi untuk...", options: ["Membantu penonton yang menyaksikan video tanpa suara", "Menutupi foto wajah produk", "Memenuhi kapasitas penyimpanan memori HP", "Memperpanjang durasi ekspor video"], correct: 0, explain: "Banyak audiens menonton video tanpa suara, sehingga subtitel sangat penting." },
+                { q: "Aspek utama yang membedakan akun bisnis dan akun pribadi di Instagram adalah...", options: ["Akses fitur Analitik Wawasan (Insights) & Tombol Kontak", "Tidak bisa mengganti foto profil", "Hanya bisa mengunggah gambar hitam putih", "Wajib memiliki 1 juta pengikut"], correct: 0, explain: "Akun bisnis menyediakan fitur analitik data jangkauan dan performa postingan." },
+                { q: "Formula copywriting yang paling cocok digunakan untuk menyoroti solusi masalah emosional adalah...", options: ["Formula PAS (Problem-Agitate-Solution)", "Formula SWOT", "Metode BMC", "Prinsip Akuntansi"], correct: 0, explain: "PAS sangat efektif menyentuh titik emosional (pain points) calon pembeli." },
+                { q: "Untuk mengetahui efektivitas poster promosi LKPD, indikator awal yang bisa diamati adalah...", options: ["Respon, respon pertanyaan, atau pesanan masuk dari audiens", "Berapa banyak jumlah halaman file PDF Canva", "Ukuran resolusi gambar di laptop", "Jumlah warna yang digunakan desainer"], correct: 0, explain: "Interaksi dan pertanyaan pembeli menunjukkan efektivitas pesan promosi." }
+            ],
+            hard: [
+                { q: "Analisis Kalimat: 'Ingin kurus tapi gagal diet terus? Lemak menumpuk bikin kurang percaya diri!'. Kalimat ini menerapkan...", options: ["PAS: Combination of Problem & Agitate", "AIDA: Pure Action CTA", "BMC: Revenue Streams", "AIDA: Finish Line"], correct: 0, explain: "Kalimat pertama menggambarkan masalah dan dampaknya terhadap rasa percaya diri." },
+                { q: "Strategi menambahkan kata 'Promo hemat cuma hari ini!' pada kalimat CTA bertujuan menciptakan...", options: ["Sense of Urgency (Pencegah Penundaan Beli)", "Perasaan bingung pada pembeli", "Penurunan kualitas produk", "Draf proposal usaha"], correct: 0, explain: "Urgensi memicu calon pembeli untuk bertindak cepat tanpa menunda." },
+                { q: "Seorang Copywriter membuat draf: 'Pesan Sekarang! Beli 2 Gratis 1 Stiker Unik'. Kelemahan draf ini jika ditaruh di detik ke-1 video adalah...", options: ["Terlalu cepat masuk Action tanpa membangun Attention & Desire", "Harganya terlalu murah", "Teksnya kurang panjang", "Tidak menggunakan bahasa asing"], correct: 0, explain: "CTA di awal kurang efektif karena audiens belum memahami nilai/keunggulan produk." },
+                { q: "Bagaimana cara menyelaraskan Value Proposition BMC ke dalam konten Reels 20 detik?", options: ["Jadikan keunggulan utama produk sebagai visual & narasi pada bagian Desire", "Tulis seluruh tabel BMC ke dalam poster 1x1", "Sebutkan modal usaha di bagian Hook", "Hapus bagian CTA agar video bersih"], correct: 0, explain: "Value Proposition disajikan secara menarik pada elemen Desire." },
+                { q: "Dalam video promo, jika teks layar dan pengisian suara (voiceover) menyampaikan hal yang bertolak belakang, akibatnya adalah...", options: ["Pesan iklan membingungkan penonton (Distraksi Kognitif)", "Penjualan meningkat pesat", "Algoritma TikTok memberi bonus", "Video otomatis menjadi viral"], correct: 0, explain: "Pesan yang kontradiktif menurunkan pemahaman dan kepercayaan audiens." },
+                { q: "Mengapa riset Customer Segment pada BMC sangat mempengaruhi gaya bahasa (Tone of Voice) Copywriting?", options: ["Gaya bahasa harus sesuai dengan karakteristik dan kebiasaan audiens sasaran", "Agar teks iklan terlihat keren tanpa dipahami pembeli", "Syarat administratif pembuatan PT", "Meningkatkan kecepatan render video"], correct: 0, explain: "Tone of voice yang tepat membuat pesan iklan terasa relevan bagi target audiens." },
+                { q: "Teknik 'Social Proof' yang sering ditambahkan pada bagian Desire iklan digital adalah...", options: ["Menampilkan testimoni atau ulasan kepuasan pelanggan", "Menampilkan foto pabrik kosong", "Menulis nama anggota kelompok", "Menghapus nomor kontak WA"], correct: 0, explain: "Testimoni pembeli meningkatkan kepercayaan calon konsumen baru." },
+                { q: "Jika indikator Click-Through-Rate (CTR) iklan tinggi namun penjualan rendah, kemungkinan masalahnya terletak pada...", options: ["CTA atau halaman tujuan (Landing Page) yang kurang meyakinkan", "Hook video yang terlalu jelek", "Foto produk kurang buram", "Warna poster terlalu terang"], correct: 0, explain: "CTR tinggi berarti Hook berhasil, namun CTA/penawaran kurang mengonversi." },
+                { q: "Dalam formula PAS, bagian 'Agitate' yang terlalu berlebihan dan menakut-nakuti dapat berdampak...", options: ["Audiens merasa tidak nyaman dan meninggalkan iklan (Resistensi)", "Penjualan naik 1000%", "Iklan langsung mendapat penghargaan", "Harga bahan baku turun"], correct: 0, explain: "Agitate berlebihan tanpa empati bisa memicu penolakan dari konsumen." },
+                { q: "Indikator keberhasilan utama dari bagian 'Attention (Hook)' pada video TikTok adalah...", options: ["Retention Rate / Durasi tonton pada 3 detik pertama", "Jumlah kata pada caption", "Banyaknya warna pada poster", "Kecepatan internet pengunggah"], correct: 0, explain: "Tingkat retensi 3 detik pertama mengukur efektivitas Hook." },
+                { q: "Manakah penyusunan alur Storyboard 20 detik yang paling terstruktur sesuai teori?", options: ["Detik 0-3: Hook, Detik 3-15: Problem & Solution, Detik 15-20: CTA", "Detik 0-10: CTA, Detik 10-15: Hook, Detik 15-20: Problem", "Detik 0-5: Kredit Judul, Detik 5-20: Hening", "Detik 0-20: Penjelasan Harga Saja"], correct: 0, explain: "Alur terstruktur dimulai dari Hook, pembahasan nilai, lalu diakhiri CTA." },
+                { q: "Penggunaan penawaran 'Scarcity' (Keterbatasan Stok) pada CTA contohnya adalah...", options: ["'Stok terbatas! Sisa 5 paket promo untuk pembeli pertama hari ini!'", "'Produk kami selalu ready selamanya tanpa batas.'", "'Silakan beli kapan saja jika sempat.'", "'Kami tidak menerima pesanan baru.'"], correct: 0, explain: "Scarcity memanfaatkan kelangkaan stok untuk mendorong keputusan beli." },
+                { q: "Mengapa poster rasio 1:1 lebih disukai untuk feed Instagram dibandingkan rasio 16:9?", options: ["Memaksimalkan ruang tampilan layar HP secara optimal tanpa terpotong", "Karena ukuran filenya selalu lebih kecil", "Diwajibkan oleh undang-undang", "Agar bisa dicetak di kertas A0"], correct: 0, explain: "Rasio 1:1 memberikan proporsi tampilan yang pas dan estetik pada feed HP." },
+                { q: "Penilaian refleksi individu LKPD fokus pada evaluasi...", options: ["Pemahaman copywriting dan kendala penyusunan storyboard", "Berapa banyak kuota yang dihabiskan", "Merk laptop yang digunakan siswa", "Jumlah pengikut di media sosial"], correct: 0, explain: "Refleksi mengukur pemahaman materi serta hambatan belajar siswa." },
+                { q: "Tujuan utama pengintegrasian Value Proposition BMC ke dalam Copywriting adalah...", options: ["Memastikan pesan pemasaran menyampaikan keunggulan nyata produk", "Memenuhi halaman draf agar penuh", "Mengganti fungsi laporan keuangan", "Membuat logo produk jadi lebih besar"], correct: 0, explain: "Copywriting menerjemahkan keunggulan nilai BMC menjadi kalimat promosi." },
+                { q: "Konsep 'Call to Action' yang ambigu dan buruk contohnya adalah...", options: ["'Jika berminat silakan cari informasi sendiri di google'", "'Klik link di bio untuk diskon 20% hari ini!'", "'Hubungi WA 0812xxx sekarang untuk pesan!'", "'Beli 1 gratis 1 khusus order sebelum jam 5 sore'"], correct: 0, explain: "Instruksi yang membingungkan dan tidak jelas merusak tingkat konversi." },
+                { q: "Ketika tingkat persaingan produk sejenis tinggi di pasar, bagian Copywriting yang paling vital ditingkatkan adalah...", options: ["Unique Selling Proposition (USP) pada elemen Desire", "Ukuran font nama toko", "Jumlah stiker di poster", "Warna latar latar belakang menjadi hitam"], correct: 0, explain: "USP menjelaskan alasan mengapa konsumen harus memilih produk Anda dibanding pesaing." },
+                { q: "Sebuah iklan Reels menunjukkan cuplikan proses pembuatan yang bersih dan higienis. Dalam AIDA, ini menguatkan...", options: ["Desire (Membangun kepercayaan & selera)", "Attention awal saja", "Sistem akuntansi perusahaan", "Penetapan harga CTA"], correct: 0, explain: "Transparansi higienitas membangun kredibilitas dan keinginan (Desire) membeli." },
+                { q: "Apa dampak buruk jika eksekusi visual poster tidak sesuai dengan kriteria target pasar (Customer Segment)?", options: ["Pesan iklan tidak relevan sehingga diabaikan oleh target pembeli", "Ukuran file desain otomatis corrupt", "Printer tidak mau mencetak poster", "Harga barang berubah sendiri"], correct: 0, explain: "Visual yang miset dari preferensi target pasar menurunkan minat beli." },
+                { q: "Strategi 'Soft Selling' pada draf copywriting video ditandai dengan...", options: ["Bercerita (Storytelling) edukatif sebelum memperkenalkan produk", "Langsung menembak harga murah di detik pertama", "Memaksa orang membeli berulang kali", "Menyuruh penonton mematikan HP"], correct: 0, explain: "Soft selling mengedepankan edukasi dan narasi halus sebelum penawaran." },
+                { q: "Dalam metrik pemasaran digital, istilah 'Conversion Rate' mengukur...", options: ["Persentase audiens yang melakukan aksi beli dari total pengunjung", "Berapa menit durasi video dibuat di Canva", "Banyaknya warna font dalam poster", "Jumlah kuota internet untuk mengunggah"], correct: 0, explain: "Konversi mengukur sejauh mana iklan berhasil mengubah penonton menjadi pembeli." },
+                { q: "Mengapa uji coba A/B Testing pada judul 'Hook Headline' penting dilakukan?", options: ["Untuk menemukan formula kalimat mana yang memicu respon tertinggi", "Agar memenangi lomba desain grafis", "Memenuhi kuota tugas sekolah", "Menghabiskan waktu jam pelajaran"], correct: 0, explain: "A/B testing membandingkan performa dua variasi judul iklan." },
+                { q: "Kombinasi elemen yang menciptakan efek 'FOMO' (Fear of Missing Out) pada calon pembeli adalah...", options: ["Scarcity (Stok Terbatas) + Urgency (Batas Waktu Penawaran)", "Problem + Agitate tanpa solusi", "Logo merek + foto produk buram", "Daftar bahan baku + alamat toko"], correct: 0, explain: "Keterbatasan stok dan waktu memicu rasa takut ketinggalan kesempatan promo." },
+                { q: "Di bawah ini yang merupakan kesalahan fatal dalam alur Storyboard promosi adalah...", options: ["Menaruh Call to Action di 1 detik pertama sebelum produk dijelaskan", "Menjelaskan rasa unik produk pada detik ke-10", "Menggunakan pencahayaan terang pada produk", "Menambahkan subtitel pada teks ucapan"], correct: 0, explain: "CTA terlalu awal tidak efektif karena audiens belum mengenal keunggulan produk." },
+                { q: "Bagaimana cara mengevaluasi apakah draf copywriting LKPD sudah layak rilis?", options: ["Cek keselarasan antara Problem, Keunggulan BMC, dan kejelasan CTA", "Hitung jumlah kata harus tepat 1000 kata", "Pastikan dicetak menggunakan kertas foto tebal", "Minta persetujuan seluruh pengikut media sosial"], correct: 0, explain: "Evaluasi berfokus pada relevansi problem, nilai solusi BMC, serta ketegasan CTA." }
+            ]
+        };
+
+        /* ==========================================================================
+           3. AUDIO ENGINE (MOTOR SOUND & SOFT SFX)
+           ========================================================================== */
+        class SoftSoundEngine {
+            constructor() {
+                this.isInitialized = false;
+                this.synth = null;
+                this.engineOsc = null;
+                this.engineGain = null;
+                this.engineFilter = null;
+            }
+
+            init() {
+                if (this.isInitialized) return;
+                try {
+                    Tone.start();
+
+                    // Soft Melodic PolySynth for Quiz & UI FX
+                    this.synth = new Tone.PolySynth(Tone.Synth, {
+                        oscillator: { type: "sine" },
+                        envelope: { attack: 0.03, decay: 0.15, sustain: 0.2, release: 0.5 }
+                    }).toDestination();
+                    this.synth.volume.value = -10;
+
+                    // Motorbike Engine Sound Synthesizer (Sawtooth + Lowpass Filter + LFO Tremolo)
+                    this.engineFilter = new Tone.Filter({
+                        frequency: 180,
+                        type: "lowpass",
+                        rolloff: -24
+                    }).toDestination();
+
+                    this.engineGain = new Tone.Gain(0.0).connect(this.engineFilter);
+
+                    this.engineOsc = new Tone.Oscillator({
+                        frequency: 55, // Pitch derum mesin awal
+                        type: "sawtooth10"
+                    }).connect(this.engineGain);
+
+                    this.engineOsc.start();
+                    this.isInitialized = true;
+                } catch (e) {
+                    console.log("Audio Init Error:", e);
+                }
+            }
+
+            // Update derum suara mesin sepeda motor secara dinamis sesuai kecepatan
+            updateEngineSound(speed) {
+                if (!this.isInitialized || !isRacing) {
+                    if (this.engineGain) this.engineGain.gain.rampTo(0, 0.2);
+                    return;
+                }
+
+                // Hitung pitch & volume berdasar kecepatan (0 - 180 km/h)
+                const baseFreq = 45 + (speed * 0.75); // Pitch naik saat ngebut
+                const targetVolume = Math.min(0.18, 0.03 + (speed / 180) * 0.15); // Volume lembut
+                const filterFreq = 120 + (speed * 4); // Filter membuka saat akselerasi
+
+                this.engineOsc.frequency.rampTo(baseFreq, 0.1);
+                this.engineGain.gain.rampTo(targetVolume, 0.1);
+                this.engineFilter.frequency.rampTo(filterFreq, 0.1);
+            }
+
+            stopEngineSound() {
+                if (this.engineGain) {
+                    this.engineGain.gain.rampTo(0, 0.3);
+                }
+            }
+
+            playClickSFX() {
+                if (!this.isInitialized) return;
+                this.synth.triggerAttackRelease("G5", "32n", undefined, 0.1);
+            }
+
+            playCorrectSFX() {
+                if (!this.isInitialized) return;
+                const now = Tone.now();
+                this.synth.triggerAttackRelease("C5", "16n", now, 0.3);
+                this.synth.triggerAttackRelease("E5", "16n", now + 0.08, 0.3);
+                this.synth.triggerAttackRelease("G5", "8n", now + 0.16, 0.4);
+            }
+
+            playWrongSFX() {
+                if (!this.isInitialized) return;
+                const now = Tone.now();
+                this.synth.triggerAttackRelease("Eb4", "16n", now, 0.25);
+                this.synth.triggerAttackRelease("C4", "8n", now + 0.1, 0.25);
+            }
+
+            playVictoryFanfare() {
+                if (!this.isInitialized) return;
+                const now = Tone.now();
+                this.synth.triggerAttackRelease("C4", "8n", now, 0.4);
+                this.synth.triggerAttackRelease("E4", "8n", now + 0.12, 0.4);
+                this.synth.triggerAttackRelease("G4", "8n", now + 0.24, 0.4);
+                this.synth.triggerAttackRelease("C5", "4n", now + 0.36, 0.6);
+            }
+        }
+        const audio = new SoftSoundEngine();
+
+        /* ==========================================================================
+           4. THREE.JS 3D SCENE & SPLIT SCREEN CAMERAS
+           ========================================================================== */
+        let scene, renderer, clock;
+        let enemyBikes = [];
+
+        function init3D() {
+            const container = document.getElementById('canvas-container');
+            container.innerHTML = '';
+
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x7dd3fc);
+            scene.fog = new THREE.FogExp2(0x7dd3fc, 0.004);
+
+            clock = new THREE.Clock();
+
+            // Setup Cameras for P1 & P2
+            p1.camera = new THREE.PerspectiveCamera(58, (container.clientWidth / (gameMode === '2p' ? 2 : 1)) / container.clientHeight, 0.1, 1200);
+            p2.camera = new THREE.PerspectiveCamera(58, (container.clientWidth / 2) / container.clientHeight, 0.1, 1200);
+
+            renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
+            renderer.setSize(container.clientWidth, container.clientHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            renderer.toneMapping = THREE.ACESFilmicToneMapping;
+            container.appendChild(renderer.domElement);
+
+            // Realistic Lighting
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.75);
+            scene.add(ambientLight);
+
+            const sunLight = new THREE.DirectionalLight(0xfffbeb, 1.2);
+            sunLight.position.set(30, 60, 30);
+            sunLight.castShadow = true;
+            scene.add(sunLight);
+
+            createGroundAndTrack();
+
+            // Player 1 Bike (Blue Metallic)
+            p1.bike = createRealisticMotorbike(0x0284c7, 0x0369a1, 0xf59e0b);
+            scene.add(p1.bike);
+
+            // Player 2 Bike (Purple Metallic)
+            p2.bike = createRealisticMotorbike(0x7c3aed, 0x5b21b6, 0x38bdf8);
+            scene.add(p2.bike);
+
+            // Enemy Competitor Bikes
+            const rivalColors = [
+                { primary: 0xdc2626, secondary: 0x991b1b, accent: 0xfacc15 },
+                { primary: 0x16a34a, secondary: 0x15803d, accent: 0xffffff }
+            ];
+
+            enemyBikes = rivalColors.map((color, idx) => {
+                const mesh = createRealisticMotorbike(color.primary, color.secondary, color.accent);
+                scene.add(mesh);
+                return {
+                    mesh: mesh,
+                    speed: 40 + (idx * 5),
+                    distance: 18 + (idx * 16),
+                    laneX: (idx % 2 === 0 ? 1 : -1) * 3
+                };
+            });
+
+            window.addEventListener('resize', onWindowResize);
+        }
+
+        function createGroundAndTrack() {
+            // High detailed grass ground
+            const ground = new THREE.Mesh(
+                new THREE.PlaneGeometry(350, trackLength + 400),
+                new THREE.MeshStandardMaterial({ color: 0x38a169, roughness: 0.9 })
+            );
+            ground.rotation.x = -Math.PI / 2;
+            ground.position.z = trackLength / 2;
+            ground.receiveShadow = true;
+            scene.add(ground);
+
+            // Realistic Asphalt Road
+            const trackRoad = new THREE.Mesh(
+                new THREE.PlaneGeometry(16, trackLength + 100),
+                new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.35, metalness: 0.1 })
+            );
+            trackRoad.rotation.x = -Math.PI / 2;
+            trackRoad.position.z = trackLength / 2;
+            trackRoad.position.y = 0.02;
+            trackRoad.receiveShadow = true;
+            scene.add(trackRoad);
+
+            // Red/White Racing Kerbs (Bahu Jalan Racing)
+            for (let z = -20; z < trackLength + 50; z += 4) {
+                const isRed = Math.floor(z / 4) % 2 === 0;
+                const kerbMat = new THREE.MeshStandardMaterial({ color: isRed ? 0xef4444 : 0xffffff, roughness: 0.4 });
+                
+                const kerbLeft = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.15, 4), kerbMat);
+                kerbLeft.position.set(-8.4, 0.08, z);
+                
+                const kerbRight = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.15, 4), kerbMat);
+                kerbRight.position.set(8.4, 0.08, z);
+                
+                scene.add(kerbLeft, kerbRight);
+            }
+
+            // Track Center Line (Marka Jalan Terputus)
+            for (let z = 0; z < trackLength + 50; z += 10) {
+                const centerLine = new THREE.Mesh(
+                    new THREE.PlaneGeometry(0.35, 5),
+                    new THREE.MeshBasicMaterial({ color: 0xfacc15 })
+                );
+                centerLine.rotation.x = -Math.PI / 2;
+                centerLine.position.set(0, 0.03, z);
+                scene.add(centerLine);
+            }
+
+            // Safety Guardrails (Pagar Pembatas Sirkuit)
+            const railMat = new THREE.MeshStandardMaterial({ color: 0xcbd5e1, metalness: 0.8, roughness: 0.2 });
+            for (let z = -20; z < trackLength + 50; z += 12) {
+                const postLeft = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 1.4), railMat);
+                postLeft.position.set(-9.2, 0.7, z);
+                const postRight = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 1.4), railMat);
+                postRight.position.set(9.2, 0.7, z);
+                scene.add(postLeft, postRight);
+            }
+            const railBarLeft = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.4, trackLength + 80), railMat);
+            railBarLeft.position.set(-9.2, 0.9, trackLength / 2);
+            const railBarRight = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.4, trackLength + 80), railMat);
+            railBarRight.position.set(9.2, 0.9, trackLength / 2);
+            scene.add(railBarLeft, railBarRight);
+
+            // Trees along the track sides
+            const trunkGeo = new THREE.CylinderGeometry(0.3, 0.5, 3, 8);
+            const leavesGeo = new THREE.ConeGeometry(2.5, 6, 8);
+            const trunkMat = new THREE.MeshStandardMaterial({ color: 0x78350f });
+            const leavesMat = new THREE.MeshStandardMaterial({ color: 0x15803d, roughness: 0.8 });
+
+            for (let z = 10; z < trackLength + 50; z += 25) {
+                const treeL = new THREE.Group();
+                const trunk1 = new THREE.Mesh(trunkGeo, trunkMat);
+                const leaves1 = new THREE.Mesh(leavesGeo, leavesMat);
+                leaves1.position.y = 3.8;
+                treeL.add(trunk1, leaves1);
+                treeL.position.set(-14 - Math.random() * 8, 1.5, z);
+
+                const treeR = treeL.clone();
+                treeR.position.set(14 + Math.random() * 8, 1.5, z + 5);
+                scene.add(treeL, treeR);
+            }
+
+            // High-Tech Finish Line Arch / Gantry
+            const archGroup = new THREE.Group();
+            const pillarMat = new THREE.MeshStandardMaterial({ color: 0x0f172a, metalness: 0.8 });
+            const bannerMat = new THREE.MeshStandardMaterial({ color: 0xf59e0b, metalness: 0.5 });
+
+            const pL = new THREE.Mesh(new THREE.BoxGeometry(1.2, 8, 1.2), pillarMat);
+            pL.position.set(-9, 4, trackLength + 2);
+            const pR = new THREE.Mesh(new THREE.BoxGeometry(1.2, 8, 1.2), pillarMat);
+            pR.position.set(9, 4, trackLength + 2);
+
+            const topBanner = new THREE.Mesh(new THREE.BoxGeometry(19.2, 2.2, 0.8), bannerMat);
+            topBanner.position.set(0, 7.5, trackLength + 2);
+
+            archGroup.add(pL, pR, topBanner);
+            scene.add(archGroup);
+        }
+
+        function createRealisticMotorbike(primaryHex, secondaryHex, accentHex) {
+            const bikeGroup = new THREE.Group();
+
+            const bodyMat = new THREE.MeshStandardMaterial({ color: primaryHex, metalness: 0.7, roughness: 0.2 });
+            const darkBodyMat = new THREE.MeshStandardMaterial({ color: secondaryHex, metalness: 0.5, roughness: 0.4 });
+            const chromeMat = new THREE.MeshStandardMaterial({ color: 0xf1f5f9, metalness: 0.95, roughness: 0.1 });
+            const tireMat = new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.9 });
+            const glassMat = new THREE.MeshPhysicalMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.6, roughness: 0.1 });
+
+            // Main Aerodynamic Fairing
+            const tank = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.45, 0.9), bodyMat);
+            tank.position.set(0, 0.75, 0.1);
+
+            const frontFairing = new THREE.Mesh(new THREE.ConeGeometry(0.35, 0.9, 4), bodyMat);
+            frontFairing.rotation.x = Math.PI / 2.2;
+            frontFairing.position.set(0, 0.75, 0.75);
+
+            // Windshield
+            const windshield = new THREE.Mesh(new THREE.PlaneGeometry(0.32, 0.4), glassMat);
+            windshield.rotation.x = -Math.PI / 4;
+            windshield.position.set(0, 0.98, 0.72);
+
+            // Exhaust Pipe
+            const exhaust = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.09, 0.75, 12), chromeMat);
+            exhaust.rotation.x = Math.PI / 2.3;
+            exhaust.position.set(0.28, 0.4, -0.45);
+
+            // Front Fork Suspensions
+            const forkL = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 0.8), chromeMat);
+            forkL.rotation.x = -Math.PI / 12;
+            forkL.position.set(-0.2, 0.45, 0.75);
+            const forkR = forkL.clone();
+            forkR.position.x = 0.2;
+
+            // Wheels & Rim Alloy
+            const wheelGeo = new THREE.CylinderGeometry(0.36, 0.36, 0.2, 28);
+            wheelGeo.rotateZ(Math.PI / 2);
+
+            const rimGeo = new THREE.CylinderGeometry(0.25, 0.25, 0.21, 12);
+            rimGeo.rotateZ(Math.PI / 2);
+
+            // Front Wheel
+            const frontWheel = new THREE.Mesh(wheelGeo, tireMat);
+            const frontRim = new THREE.Mesh(rimGeo, chromeMat);
+            frontWheel.add(frontRim);
+            frontWheel.position.set(0, 0.36, 0.82);
+
+            // Rear Wheel
+            const rearWheel = new THREE.Mesh(wheelGeo, tireMat);
+            const rearRim = new THREE.Mesh(rimGeo, chromeMat);
+            rearWheel.add(rearRim);
+            rearWheel.position.set(0, 0.36, -0.75);
+
+            // Seat & Tail
+            const seat = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.15, 0.5), darkBodyMat);
+            seat.position.set(0, 0.7, -0.3);
+
+            const tail = new THREE.Mesh(new THREE.ConeGeometry(0.25, 0.6, 4), bodyMat);
+            tail.rotation.x = -Math.PI / 2.2;
+            tail.position.set(0, 0.78, -0.65);
+
+            bikeGroup.add(tank, frontFairing, windshield, exhaust, forkL, forkR, frontWheel, rearWheel, seat, tail);
+
+            // Rider Body & Helmet
+            const riderGroup = new THREE.Group();
+            const suitMat = new THREE.MeshStandardMaterial({ color: darkBodyMat.color, roughness: 0.5 });
+            const helmetMat = new THREE.MeshStandardMaterial({ color: accentHex, metalness: 0.8, roughness: 0.2 });
+
+            const torso = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.5, 0.6), suitMat);
+            torso.rotation.x = Math.PI / 5;
+            torso.position.set(0, 0.95, 0.05);
+
+            const helmet = new THREE.Mesh(new THREE.SphereGeometry(0.22, 20, 20), helmetMat);
+            helmet.position.set(0, 1.22, 0.28);
+
+            const visor = new THREE.Mesh(new THREE.SphereGeometry(0.225, 16, 16, 0, Math.PI, 0, Math.PI / 2), darkBodyMat);
+            visor.rotation.x = Math.PI / 2;
+            visor.position.set(0, 1.22, 0.29);
+
+            riderGroup.add(torso, helmet, visor);
+            bikeGroup.add(riderGroup);
+
+            bikeGroup.traverse((child) => {
+                if (child.isMesh) {
+                    child.castShadow = true;
+                    child.receiveShadow = true;
+                }
+            });
+
+            return bikeGroup;
+        }
+
+        function onWindowResize() {
+            const container = document.getElementById('canvas-container');
+            if (!container || !renderer) return;
+
+            const width = container.clientWidth;
+            const height = container.clientHeight;
+
+            renderer.setSize(width, height);
+
+            if (gameMode === '2p') {
+                p1.camera.aspect = (width / 2) / height;
+                p2.camera.aspect = (width / 2) / height;
+            } else {
+                p1.camera.aspect = width / height;
+            }
+
+            p1.camera.updateProjectionMatrix();
+            p2.camera.updateProjectionMatrix();
+        }
+
+        /* ==========================================================================
+           5. GAME LOOP & ANIMATION
+           ========================================================================== */
+        function animate() {
+            requestAnimationFrame(animate);
+            const delta = clock ? clock.getDelta() : 0.016;
+
+            if (isRacing) {
+                // Update P1
+                p1.speed += (p1.targetSpeed - p1.speed) * delta * 2.8;
+                if (p1.targetSpeed > 30) p1.targetSpeed -= delta * 10;
+                p1.distance += p1.speed * delta;
+                if (p1.bike) p1.bike.position.set(-1.8, 0, p1.distance);
+
+                // Update P2
+                if (gameMode === '2p') {
+                    p2.speed += (p2.targetSpeed - p2.speed) * delta * 2.8;
+                    if (p2.targetSpeed > 30) p2.targetSpeed -= delta * 10;
+                    p2.distance += p2.speed * delta;
+                    if (p2.bike) p2.bike.position.set(1.8, 0, p2.distance);
+                } else if (p2.bike) {
+                    p2.bike.position.set(999, 0, 0);
+                }
+
+                // Update Motorbike Engine Sound based on highest active player speed
+                const maxSpeed = Math.max(p1.speed, gameMode === '2p' ? p2.speed : 0);
+                audio.updateEngineSound(maxSpeed);
+
+                // Update Enemies
+                enemyBikes.forEach((enemy) => {
+                    enemy.distance += enemy.speed * delta;
+                    enemy.mesh.position.set(enemy.laneX, 0, enemy.distance);
+                });
+
+                // Update Camera Views
+                if (p1.bike && p1.camera) updateCamera(p1.camera, p1.bike, -1.8);
+                if (gameMode === '2p' && p2.bike && p2.camera) {
+                    updateCamera(p2.camera, p2.bike, 1.8);
+                }
+
+                updateRanksAndHUD();
+
+                // Check finish conditions
+                if (p1.distance >= trackLength && !p1.finished) {
+                    p1.finished = true;
+                }
+                if (p2.distance >= trackLength && !p2.finished) {
+                    p2.finished = true;
+                }
+
+                if ((gameMode === '1p' && p1.finished) || (gameMode === '2p' && (p1.finished || p2.finished))) {
+                    endGame(true);
+                }
+
+            } else if (p1.camera) {
+                audio.stopEngineSound();
+                const time = clock ? clock.getElapsedTime() * 0.35 : 0;
+                p1.camera.position.set(Math.sin(time) * 12, 5.5, Math.cos(time) * 12 - 5);
+                p1.camera.lookAt(0, 1.2, 0);
+            }
+
+            // Render Split Screen or Fullscreen
+            const container = document.getElementById('canvas-container');
+            if (!container || !renderer) return;
+
+            const w = container.clientWidth;
+            const h = container.clientHeight;
+
+            if (gameMode === '2p') {
+                renderer.setViewport(0, 0, w / 2, h);
+                renderer.setScissor(0, 0, w / 2, h);
+                renderer.setScissorTest(true);
+                if (p1.camera) renderer.render(scene, p1.camera);
+
+                renderer.setViewport(w / 2, 0, w / 2, h);
+                renderer.setScissor(w / 2, 0, w / 2, h);
+                renderer.setScissorTest(true);
+                if (p2.camera) renderer.render(scene, p2.camera);
+            } else {
+                renderer.setViewport(0, 0, w, h);
+                renderer.setScissor(0, 0, w, h);
+                renderer.setScissorTest(false);
+                if (p1.camera) renderer.render(scene, p1.camera);
+            }
+        }
+
+        function updateCamera(cam, bike, laneX) {
+            cam.position.set(laneX, 3.8, bike.position.z - 7.5);
+            cam.lookAt(laneX, 1.2, bike.position.z + 18);
+        }
+
+        /* ==========================================================================
+           6. QUIZ & MULTIPLAYER LOGIC
+           ========================================================================== */
+        function shuffleArray(arr) {
+            return [...arr].sort(() => Math.random() - 0.5);
+        }
+
+        function loadPlayerQuestion(p, pNum) {
+            const qList = (pNum === 1) ? p1Questions : p2Questions;
+            if (p.qIndex >= qList.length) {
+                p.finished = true;
+                return;
+            }
+
+            const qData = qList[p.qIndex];
+            document.getElementById(`p${pNum}QNum`).textContent = `${p.qIndex + 1} / 25`;
+            document.getElementById(`p${pNum}QText`).textContent = qData.q;
+
+            const optsContainer = document.getElementById(`p${pNum}Opts`);
+            optsContainer.innerHTML = '';
+
+            const indexedOptions = qData.options.map((opt, idx) => ({ text: opt, isCorrect: idx === qData.correct }));
+            const shuffled = shuffleArray(indexedOptions);
+
+            shuffled.forEach((opt) => {
+                const btn = document.createElement('button');
+                btn.className = 'w-full p-2 rounded-lg bg-white hover:bg-sky-50 border border-slate-300 text-left text-[10px] font-bold text-slate-700 transition shadow-sm flex justify-between items-center cursor-pointer';
+                btn.innerHTML = `<span>${opt.text}</span> <i class="fa-solid fa-chevron-right text-[8px] text-sky-400"></i>`;
+                btn.onclick = () => handlePlayerAnswer(p, pNum, opt.isCorrect, qData.explain);
+                optsContainer.appendChild(btn);
+            });
+
+            document.getElementById(`p${pNum}Feedback`).className = 'mt-1 p-1 rounded-lg text-center font-bold text-[9px] hidden';
+        }
+
+        function handlePlayerAnswer(p, pNum, isCorrect, explanation) {
+            audio.init();
+
+            const fb = document.getElementById(`p${pNum}Feedback`);
+            fb.classList.remove('hidden');
+
+            if (isCorrect) {
+                p.score += currentConfig.scoreGain;
+                p.targetSpeed = currentConfig.boostSpeed;
+                p.strike = 0;
+                p.distance = Math.min(trackLength, p.distance + (trackLength / 25));
+                audio.playCorrectSFX();
+
+                fb.className = 'mt-1 p-1 rounded-lg text-center font-bold text-[9px] bg-emerald-100 text-emerald-800 border border-emerald-300';
+                fb.innerHTML = `<i class="fa-solid fa-check"></i> BENAR! Boost Melaju (+${currentConfig.scoreGain} Poin)`;
+            } else {
+                p.strike++;
+                p.score = Math.max(0, p.score - 50);
+                p.targetSpeed = 10;
+                timeLeft = Math.max(0, timeLeft - currentConfig.timePenalty);
+                audio.playWrongSFX();
+
+                fb.className = 'mt-1 p-1 rounded-lg text-center font-bold text-[9px] bg-rose-100 text-rose-800 border border-rose-300';
+                fb.innerHTML = `<i class="fa-solid fa-xmark"></i> SALAH! (-${currentConfig.timePenalty}s). ${explanation}`;
+
+                // Update Strike Display
+                const strikeContainer = document.getElementById(`p${pNum}Strike`);
+                if (strikeContainer) {
+                    const dots = strikeContainer.querySelectorAll('span');
+                    if (dots.length >= p.strike) {
+                        dots[p.strike - 1].className = 'w-2 h-2 rounded-full bg-rose-600 inline-block';
+                    }
+                }
+
+                if (p.strike >= 2 && gameMode === '1p') {
+                    setTimeout(() => endGame(false, `${p.name} melakukan 2 kesalahan berturut-turut!`), 1200);
+                    return;
+                }
+            }
+
+            updateRanksAndHUD();
+
+            setTimeout(() => {
+                p.qIndex++;
+                loadPlayerQuestion(p, pNum);
+            }, 1600);
+        }
+
+        function updateRanksAndHUD() {
+            // Speed displays
+            document.getElementById('p1Speed').textContent = `${Math.round(p1.speed)} KM/H`;
+            document.getElementById('p2Speed').textContent = `${Math.round(p2.speed)} KM/H`;
+
+            // Score displays
+            document.getElementById('p1Score').textContent = p1.score;
+            document.getElementById('p2Score').textContent = p2.score;
+
+            // Progress bar
+            document.getElementById('p1Bar').style.width = `${Math.min(100, (p1.distance / trackLength) * 100)}%`;
+            document.getElementById('p2Bar').style.width = `${Math.min(100, (p2.distance / trackLength) * 100)}%`;
+
+            // Ranks calculation
+            const racers = [
+                { id: 'P1', dist: p1.distance },
+                { id: 'P2', dist: gameMode === '2p' ? p2.distance : -1 },
+                ...enemyBikes.map((e, i) => ({ id: `E${i}`, dist: e.distance }))
+            ];
+            racers.sort((a, b) => b.dist - a.dist);
+
+            const p1Rank = racers.findIndex(r => r.id === 'P1') + 1;
+            document.getElementById('p1Pos').textContent = `${p1Rank} / ${racers.length - (gameMode === '1p' ? 1 : 0)}`;
+
+            if (gameMode === '2p') {
+                const p2Rank = racers.findIndex(r => r.id === 'P2') + 1;
+                document.getElementById('p2Pos').textContent = `${p2Rank} / ${racers.length}`;
+            }
+
+            // Total Cumulative Score
+            const totalCum = cumulativeScores.easy + cumulativeScores.medium + cumulativeScores.hard + p1.score + (gameMode === '2p' ? p2.score : 0);
+            document.getElementById('cumTotalScore').textContent = `${totalCum} POIN`;
+            document.getElementById('modalCumScore').textContent = `${totalCum} POIN`;
+        }
+
+        /* ==========================================================================
+           7. GAME CONTROLS & TIMERS
+           ========================================================================== */
+        function startTimer() {
+            clearInterval(timerInterval);
+            timerInterval = setInterval(() => {
+                if (!isRacing) return;
+                timeLeft--;
+                const min = Math.floor(timeLeft / 60).toString().padStart(2, '0');
+                const sec = (timeLeft % 60).toString().padStart(2, '0');
+                document.getElementById('timerDisplay').textContent = `${min}:${sec}`;
+
+                if (timeLeft <= 0) {
+                    clearInterval(timerInterval);
+                    endGame(false, "Waktu balapan telah habis!");
+                }
+            }, 1000);
+        }
+
+        function startGame() {
+            audio.init();
+
+            // Set Player Names
+            p1.name = document.getElementById('p1NameInput').value || "Pemain 1";
+            p2.name = document.getElementById('p2NameInput').value || "Pemain 2";
+
+            document.getElementById('p1NameTag').textContent = p1.name;
+            document.getElementById('p2NameTag').textContent = p2.name;
+
+            // Reset States
+            p1.distance = 0; p1.speed = 0; p1.targetSpeed = 40; p1.score = 0; p1.strike = 0; p1.qIndex = 0; p1.finished = false;
+            p2.distance = 0; p2.speed = 0; p2.targetSpeed = 40; p2.score = 0; p2.strike = 0; p2.qIndex = 0; p2.finished = false;
+
+            // Reset Strike Visuals
+            ['p1Strike', 'p2Strike'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) {
+                    el.innerHTML = '<span class="w-2 h-2 rounded-full bg-slate-300 inline-block"></span><span class="w-2 h-2 rounded-full bg-slate-300 inline-block"></span>';
+                }
+            });
+
+            currentConfig = levelConfigs[selectedLevel];
+            timeLeft = currentConfig.timeLimit;
+
+            // Load and shuffle questions for players
+            p1Questions = shuffleArray([...questionBankByLevel[selectedLevel]]);
+            p2Questions = shuffleArray([...questionBankByLevel[selectedLevel]]);
+
+            loadPlayerQuestion(p1, 1);
+            if (gameMode === '2p') loadPlayerQuestion(p2, 2);
+
+            // Configure UI for Game Mode
+            document.getElementById('startModal').classList.add('hidden');
+            document.getElementById('finishModal').classList.add('hidden');
+            document.getElementById('gamePlayScreen').classList.remove('hidden');
+
+            if (gameMode === '2p') {
+                document.getElementById('p2Area').classList.remove('hidden');
+                document.getElementById('splitDivider').classList.remove('hidden');
+                document.getElementById('p1Area').className = 'col-span-6 flex flex-col justify-start gap-1 pointer-events-auto pr-1';
+            } else {
+                document.getElementById('p2Area').classList.add('hidden');
+                document.getElementById('splitDivider').classList.add('hidden');
+                document.getElementById('p1Area').className = 'col-span-12 flex flex-col justify-start gap-1 pointer-events-auto max-w-md mx-auto';
+            }
+
+            onWindowResize();
+            isRacing = true;
+            startTimer();
+        }
+
+        function endGame(isVictory, reason = "") {
+            isRacing = false;
+            clearInterval(timerInterval);
+            audio.stopEngineSound();
+
+            // Save Level Score
+            cumulativeScores[selectedLevel] = Math.max(cumulativeScores[selectedLevel], p1.score + (gameMode === '2p' ? p2.score : 0));
+
+            const finalTotal = cumulativeScores.easy + cumulativeScores.medium + cumulativeScores.hard;
+
+            document.getElementById('finalP1Score').textContent = p1.score;
+            document.getElementById('finalP2Score').textContent = p2.score;
+            document.getElementById('finalCumScore').textContent = `${finalTotal} POIN`;
+
+            document.getElementById('p1FinishTitle').textContent = `SKOR ${p1.name.toUpperCase()}`;
+            if (gameMode === '2p') {
+                document.getElementById('p2ScoreSummary').classList.remove('hidden');
+                document.getElementById('p2FinishTitle').textContent = `SKOR ${p2.name.toUpperCase()}`;
+            } else {
+                document.getElementById('p2ScoreSummary').classList.add('hidden');
+            }
+
+            if (isVictory) {
+                audio.playVictoryFanfare();
+                confetti({ particleCount: 120, spread: 70, origin: { y: 0.6 } });
+                document.getElementById('finishTitle').textContent = "SELAMAT! FINISH!";
+                document.getElementById('finishSubtitle').textContent = "Tantangan LKPD Pemasaran Digital Berhasil Diselesaikan!";
+                document.getElementById('finishIcon').className = "fa-solid fa-trophy text-5xl text-amber-400";
+            } else {
+                document.getElementById('finishTitle').textContent = "BALAPAN SELESAI";
+                document.getElementById('finishSubtitle').textContent = reason || "Waktu telah habis. Coba lagi untuk hasil lebih maksimal!";
+                document.getElementById('finishIcon').className = "fa-solid fa-flag-checkered text-5xl text-slate-400";
+            }
+
+            document.getElementById('finishModal').classList.remove('hidden');
+        }
+
+        function showCertificate() {
+            audio.playClickSFX();
+
+            // Penentuan 1 Pemain Pemenang berdasarkan Skor Terbanyak / Jawaban Benar
+            let winnerName = p1.name;
+            let winnerScore = p1.score;
+            let badgeText = "JUARA UTAMA";
+
+            if (gameMode === '2p') {
+                if (p2.score > p1.score) {
+                    winnerName = p2.name;
+                    winnerScore = p2.score;
+                    badgeText = "PEMENANG UTAMA (SKOR HIGHEST)";
+                } else if (p1.score > p2.score) {
+                    winnerName = p1.name;
+                    winnerScore = p1.score;
+                    badgeText = "PEMENANG UTAMA (SKOR HIGHEST)";
+                } else {
+                    // Jika Skor Sama/Imbang
+                    winnerName = `${p1.name} & ${p2.name}`;
+                    winnerScore = p1.score;
+                    badgeText = "JUARA BERSAMA (SKOR IMBANG)";
+                }
+            }
+
+            document.getElementById('certWinnerBadge').innerHTML = `<i class="fa-solid fa-trophy mr-1"></i> ${badgeText}`;
+            document.getElementById('certName').textContent = winnerName;
+            document.getElementById('certLevel').textContent = `LEVEL ${selectedLevel.toUpperCase()}`;
+            document.getElementById('certScore').textContent = `${winnerScore} POIN`;
+
+            const finalTotal = cumulativeScores.easy + cumulativeScores.medium + cumulativeScores.hard;
+            document.getElementById('certTotalScore').textContent = `${finalTotal} POIN`;
+
+            const today = new Date();
+            document.getElementById('certDate').textContent = today.toLocaleDateString('id-ID', { year: 'numeric', month: 'long', day: 'numeric' });
+            document.getElementById('certId').textContent = `MMR-${today.getFullYear()}-${Math.floor(100 + Math.random() * 900)}`;
+
+            document.getElementById('certificateModal').classList.remove('hidden');
+        }
+
+        /* ==========================================================================
+           8. INITIALIZATION & EVENT LISTENERS
+           ========================================================================== */
+        window.onload = function() {
+            init3D();
+            animate();
+
+            // Mode Selector Buttons
+            document.querySelectorAll('.mode-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    document.querySelectorAll('.mode-btn').forEach(b => {
+                        b.className = 'mode-btn py-2 px-3 rounded-xl border-2 font-bold text-xs font-orbitron transition-all bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200 flex items-center justify-center gap-1.5 cursor-pointer';
+                    });
+                    const target = e.currentTarget;
+                    target.className = 'mode-btn py-2 px-3 rounded-xl border-2 font-bold text-xs font-orbitron transition-all bg-sky-500 text-white border-sky-600 shadow-md flex items-center justify-center gap-1.5 cursor-pointer';
+
+                    gameMode = target.dataset.mode;
+                    if (gameMode === '2p') {
+                        document.getElementById('p2NameContainer').classList.remove('hidden');
+                    } else {
+                        document.getElementById('p2NameContainer').classList.add('hidden');
+                    }
+                });
+            });
+
+            // Level Selector Buttons
+            document.querySelectorAll('.level-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    document.querySelectorAll('.level-btn').forEach(b => {
+                        b.className = 'level-btn py-2 px-2 rounded-xl border-2 font-bold text-[11px] font-orbitron transition-all bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200 cursor-pointer';
+                    });
+                    const target = e.currentTarget;
+                    const level = target.dataset.level;
+
+                    if (level === 'easy') target.className = 'level-btn py-2 px-2 rounded-xl border-2 font-bold text-[11px] font-orbitron transition-all bg-emerald-500 text-white border-emerald-600 shadow-md cursor-pointer';
+                    if (level === 'medium') target.className = 'level-btn py-2 px-2 rounded-xl border-2 font-bold text-[11px] font-orbitron transition-all bg-amber-500 text-white border-amber-600 shadow-md cursor-pointer';
+                    if (level === 'hard') target.className = 'level-btn py-2 px-2 rounded-xl border-2 font-bold text-[11px] font-orbitron transition-all bg-rose-500 text-white border-rose-600 shadow-md cursor-pointer';
+
+                    selectedLevel = level;
+                });
+            });
+
+            // Action Buttons
+            document.getElementById('btnStartGame').addEventListener('click', startGame);
+            document.getElementById('btnCertificate').addEventListener('click', showCertificate);
+            document.getElementById('btnCloseCert').addEventListener('click', () => {
+                document.getElementById('certificateModal').classList.add('hidden');
+            });
+            document.getElementById('btnRestart').addEventListener('click', () => {
+                document.getElementById('finishModal').classList.add('hidden');
+                document.getElementById('gamePlayScreen').classList.add('hidden');
+                document.getElementById('startModal').classList.remove('hidden');
+                isRacing = false;
+            });
+        };
+    </script>
+</body>
+</html>
